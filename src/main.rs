@@ -1,9 +1,11 @@
-mod aes;
+mod cryptography;
 mod error;
 
 use structopt::StructOpt;
 use std::path::PathBuf;
-use aes::{OpenSSLAesCommand, AES};
+
+use cryptography::cryptography::Cryptgraphy;
+use cryptography::aes128cbc::AESCBC;
 use error::{SfResult, SfError};
 
 #[derive(StructOpt)]
@@ -11,8 +13,8 @@ struct Opt {
     /// Action
     action: String,
 
-    /// Key
-    key: String,
+    /// Password
+    pass: String,
 
     /// The number of thread
     threads: i32,
@@ -33,20 +35,19 @@ fn main() -> SfResult {
         return Err(SfError::new("input or output is not directory".to_string()))
     }
 
-    if opt.key == "" {
+    if opt.pass == "" {
         return Err(SfError::new("key is empty".to_string()))
     }
 
-    let cryptographic: OpenSSLAesCommand = AES::new(
-        &opt.key,
+    let cipher: AESCBC = Cryptgraphy::new(
+        &opt.pass,
         &opt.input,
         &opt.output,
         opt.threads,
     );
-
     match opt.action.as_str() {
-        "encrypt" => cryptographic.encrypt()?,
-        "decrypt" => cryptographic.decrypt()?,
+        "encrypt" => cipher.encrypt()?,
+        "decrypt" => cipher.decrypt()?,
         _ => return Err(SfError::new(format!("Not defined action: {}", opt.action)))
     }
 

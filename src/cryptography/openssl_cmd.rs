@@ -8,7 +8,9 @@ use uuid::Uuid;
 use pbr::ProgressBar;
 use regex::Regex;
 
-use super::error::{SfError, SfResult};
+use super::cryptography;
+use cryptography::Cryptgraphy;
+use crate::error::SfResult;
 
 pub struct OpenSSLAesCommand<'a> {
     key: &'a str,
@@ -17,40 +19,7 @@ pub struct OpenSSLAesCommand<'a> {
     threads: i32,
 }
 
-pub trait AES<'a> {
-    fn new(key: &'a str, input: &'a PathBuf, output: &'a PathBuf, threads: i32) -> Self;
-    fn encrypt(&self) -> SfResult;
-    fn decrypt(&self) -> SfResult;
-}
-
-fn get_file_list(input_dir: &PathBuf, output_dir: &PathBuf, file_type: &str) -> Result<Vec<std::string::String>, SfError> {
-    let mut list = std::fs::read_dir(input_dir)?
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|e| e.display().to_string().contains(file_type))
-        .map(|f| f.file_name().expect("failed to get filename")
-            .to_str().expect("failed to convert to str")
-            .split(".")
-            .collect::<Vec<&str>>()[0]
-            .to_string())
-        .collect::<Vec<_>>();
-
-    let check_file_type = match file_type {
-        ".enc" => ".mp4",
-        ".mp4" => ".enc",
-        _ => return Err(SfError::new("invalid file_type for file list".to_owned()))
-    };
-
-    for (i, f) in list.clone().iter().enumerate() {
-        if Path::new(&format!("{}/{}{}", output_dir.display(), f, check_file_type)).exists() {
-            list.remove(i);
-        }
-    }
-
-    Ok(list)
-}
-
-impl<'a> AES<'a> for OpenSSLAesCommand<'a> {
+impl<'a> Cryptgraphy<'a> for OpenSSLAesCommand<'a> {
     fn new(key: &'a str, input: &'a PathBuf, output: &'a PathBuf, threads: i32) -> OpenSSLAesCommand<'a> {
         OpenSSLAesCommand {
             key: key,
@@ -61,7 +30,7 @@ impl<'a> AES<'a> for OpenSSLAesCommand<'a> {
     }
 
     fn encrypt(&self) -> SfResult {
-        let file_list = get_file_list(self.input, self.output, ".mp4").expect("failed to get file list");
+        let file_list = cryptography::get_file_list(self.input, self.output, ".mp4").expect("failed to get file list");
 
         if file_list.len() == 0 {
             println!("non target file");
@@ -149,7 +118,7 @@ impl<'a> AES<'a> for OpenSSLAesCommand<'a> {
     }
 
     fn decrypt(&self) -> SfResult {
-        let file_list = get_file_list(self.input, self.output, ".enc").expect("failed to get file list");
+        let file_list = cryptography::get_file_list(self.input, self.output, ".enc").expect("failed to get file list");
 
         if file_list.len() == 0 {
             println!("non target file");

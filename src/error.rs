@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::fmt::Error as FmtError;
 use std::io::Error as IoError;
-use regex::Error as RegexError;
 
 // #[derive(PartialEq)]
 pub struct SfError {
@@ -30,12 +29,6 @@ impl Debug for SfError {
 
 impl From<IoError> for SfError {
     fn from(err: IoError) -> Self {
-        SfError::new(format!("{}", err))
-    }
-}
-
-impl From<RegexError> for SfError {
-    fn from(err: RegexError) -> Self {
         SfError::new(format!("{}", err))
     }
 }

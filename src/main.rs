@@ -1,52 +1,61 @@
-mod aes;
+mod cryptography;
 mod error;
 
-use structopt::StructOpt;
 use std::path::PathBuf;
-use aes::{OpenSSLAesCommand, AES};
+use structopt::StructOpt;
+
+use cryptography::cryptography::Cryptgraphy;
+use cryptography::aes128cbc::AESCBC;
 use error::{SfResult, SfError};
 
 #[derive(StructOpt)]
-struct Opt {
+#[structopt(rename_all = "kebab-case")]
+pub struct Opt {
     /// Action
+    #[structopt(short, long)]
     action: String,
 
-    /// Key
-    key: String,
+    /// Password
+    #[structopt(short, long)]
+    pass: String,
 
     /// The number of thread
-    threads: i32,
+    #[structopt(short="n", long="num-threads")]
+    thread: Option<i32>,
+
+    /// Target file format
+    #[structopt(short="f", long)]
+    target_file_format: Option<String>,
 
     /// Input dir
     #[structopt(short, long, parse(from_os_str))]
     input: PathBuf,
 
     /// Output dir
-    #[structopt(short, long, parse(from_os_str), required_if("out", "dir"))]
+    #[structopt(short, long, parse(from_os_str))]
     output: PathBuf,
 }
 
 fn main() -> SfResult {
-    let opt = Opt::from_args();
+    let mut opt = Opt::from_args();
 
     if !opt.input.is_dir() || !opt.output.is_dir() {
         return Err(SfError::new("input or output is not directory".to_string()))
     }
 
-    if opt.key == "" {
+    if opt.pass == "" {
         return Err(SfError::new("key is empty".to_string()))
     }
 
-    let cryptographic: OpenSSLAesCommand = AES::new(
-        &opt.key,
-        &opt.input,
-        &opt.output,
-        opt.threads,
-    );
+    if opt.thread.is_none() {
+        opt.thread = Some(1);
+    }
+
+    let cipher: AESCBC = Cryptgraphy::new(&opt);
 
     match opt.action.as_str() {
-        "encrypt" => cryptographic.encrypt()?,
-        "decrypt" => cryptographic.decrypt()?,
+        "encrypt" => cipher.encrypt()?,
+        "decrypt" => cipher.decrypt()?,
         _ => return Err(SfError::new(format!("Not defined action: {}", opt.action)))
     }
 

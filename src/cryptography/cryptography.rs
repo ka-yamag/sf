@@ -7,36 +7,9 @@ use aes::cipher::{
 };
 use super::aes128cbc::{IV_LENGTH, SALT_SIZE};
 
-pub fn get_file_list(input_dir: &PathBuf) -> Result<Vec<std::string::String>, SfError> {
-    let list = fs::read_dir(input_dir)?
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        // .filter(|e| e.display().to_string().contains(file_type))
-        .map(|f| f.file_name().expect("failed to get filename")
-            .to_str().expect("failed to convert to str")
-            // .split(".")
-            // .collect::<Vec<&str>>()[0]
-            .to_string())
-        .collect::<Vec<_>>();
-
-    // let check_file_type = match file_type {
-    //     ".sfcrypted" => ".mp4",
-    //     ".mp4" => ".sfcrypted",
-    //     _ => return Err(SfError::new("invalid file_type for file list".to_owned()))
-    // };
-
-    // for (i, f) in list.clone().iter().enumerate() {
-        // if Path::new(&format!("{}/{}{}", output_dir.display(), f, check_file_type)).exists() {
-        //     list.remove(i);
-        // }
-    // }
-
-    Ok(list)
-}
-
 // TODO:
-fn remove_deplicate_files(list: Vec<std::string::String>, file_type: &str) {
-}
+// fn remove_deplicate_files(list: Vec<std::string::String>, file_type: &str) {
+// }
 
 pub fn get_file_list_with_type(input_dir: &PathBuf, file_type: &str) -> Result<Vec<std::string::String>, SfError> {
     let list = fs::read_dir(input_dir)?
@@ -52,7 +25,6 @@ pub fn get_file_list_with_type(input_dir: &PathBuf, file_type: &str) -> Result<V
 }
 
 pub trait Cryptgraphy<'a> {
-    // fn new(key: &'a str, input: &'a PathBuf, output: &'a PathBuf, threads: i32) -> Self;
     fn new(opt: &'a Opt) -> Self;
     fn generate_key(&self) -> Result<(GenericArray<u8, U32>, [u8; IV_LENGTH], [u8; SALT_SIZE]), SfError>;
     fn encrypt(&self) -> SfResult;
@@ -76,6 +48,7 @@ mod tests {
             "52f49ff1-3874-4c93-91f4-3c3c78d159fd.enc",
             "test.txt",
             "recording.mp4",
+            "test.mp4.sfcrypted",
         ];
         
         for f in &tmp_file_list {

@@ -9,6 +9,7 @@ use cryptography::aes128cbc::AESCBC;
 use error::{SfResult, SfError};
 
 #[derive(StructOpt)]
+#[structopt(rename_all = "kebab-case")]
 pub struct Opt {
     /// Action
     #[structopt(short, long)]
@@ -19,19 +20,19 @@ pub struct Opt {
     pass: String,
 
     /// The number of thread
-    #[structopt(default_value = "1", short, long)]
-    threads: i32,
+    #[structopt(short="n", long="num-threads")]
+    thread: Option<i32>,
 
-    /// File format
-    #[structopt(long)]
-    target_file_format: String,
+    /// Target file format
+    #[structopt(short="f", long)]
+    target_file_format: Option<String>,
 
     /// Input dir
     #[structopt(short, long, parse(from_os_str))]
     input: PathBuf,
 
     /// Output dir
-    #[structopt(short, long, parse(from_os_str), required_if("out", "dir"))]
+    #[structopt(short, long, parse(from_os_str))]
     output: PathBuf,
 }
 
@@ -46,8 +47,8 @@ fn main() -> SfResult {
         return Err(SfError::new("key is empty".to_string()))
     }
 
-    if opt.threads <= 0 {
-        opt.threads = 2;
+    if opt.thread.is_none() {
+        opt.thread = Some(1);
     }
 
     let cipher: AESCBC = Cryptgraphy::new(&opt);

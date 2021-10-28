@@ -1,6 +1,6 @@
 [package]
 name = "sf"
-version = "0.2.0"
+version = "0.0.1"
 authors = ["ky <pupupu0701@gmail.com>"]
 edition = "2018"
 
@@ -9,11 +9,9 @@ tempfile = "3.2.0"
 
 [dependencies]
 structopt = "0.3.21"
-uuid = { version = "0.8", features = ["serde", "v4"] }
-pbr = "1.0.4"
 regex = "1.4.3"
-hex-literal = "0.3.1"
 ring = "0.16.19"
 rust-crypto = "^0.2"
 aes = "0.7.4"
 block-modes = "0.8.1"
+indicatif = "0.16.2"

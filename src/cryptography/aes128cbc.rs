@@ -1,3 +1,9 @@
+use super::cryptography::{get_file_list_with_type};
+use crate::Opt;
+use crate::cryptography::cryptography::{
+    Cryptgraphy
+};
+
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::fs::File;
 use crypto::scrypt::{scrypt, ScryptParams};
@@ -8,13 +14,8 @@ use aes::cipher::{
     generic_array::{GenericArray, typenum::U32},
 };
 use block_modes::{Cbc, BlockMode, block_padding::Pkcs7};
-use crate::Opt;
-
-use crate::cryptography::cryptography::{
-    Cryptgraphy
-};
-// use super::cryptography::{self, get_file_list, get_file_list_with_type};
 use crate::error::{SfError, SfResult};
+use indicatif::ProgressBar;
 
 pub struct AESCBC<'a> {
     opt: &'a Opt,
@@ -27,10 +28,6 @@ const KEY_LENGTH: usize = 32;
 const SCRYPT_LOGN: u8 = 15;
 const SCRYPT_R: u32 = 8;
 const SCRYPT_P: u32 = 1;
-
-const TMP_INPUT_FILE: &str = "/home/zivxyz/code/rust/sf/hoge.mp4";
-const TMP_FILE: &str = "/home/zivxyz/code/rust/sf/hoge2.mp4";
-const TMP_OUTPUT_FILE: &str = "/home/zivxyz/code/rust/sf/hoge.mp4.sfcrypted";
 
 impl<'a> Cryptgraphy<'a> for AESCBC<'a> {
     fn new(opt: &'a Opt) -> Self {
@@ -59,123 +56,99 @@ impl<'a> Cryptgraphy<'a> for AESCBC<'a> {
     }
 
     fn encrypt(&self) -> SfResult {
-        // let file_list = if self.opt.target_file_format == "" {
-        //     get_file_list(&self.opt.input)?
-        // } else {
-        //     get_file_list_with_type(&self.opt.input, &self.opt.target_file_format)?
-        // };
+        let file_list = match &self.opt.target_file_format {
+            Some(f) => get_file_list_with_type(&self.opt.input, &f)?,
+            None => return Err(SfError::new("target_file_format is not set".to_string())),
+        };
 
-        // if file_list.len() == 0 {
-        //     println!("non target file");
-        //     return Ok(())
-        // }
+        if file_list.len() == 0 {
+            println!("non target file");
+            return Ok(())
+        }
+
+        let pb = ProgressBar::new(file_list.len() as u64);
 
         let (key_array, iv, salt) = self.generate_key()?;
 
         let cipher = Cbc::<Aes256, Pkcs7>::new_from_slices(&key_array, &iv).unwrap();
-        let mut reader = BufReader::new(File::open(TMP_INPUT_FILE)?);
-        let mut writer = BufWriter::new(File::create(TMP_OUTPUT_FILE)?);
 
-        let mut msg = Vec::with_capacity(iv.len() + salt.len());
-        msg.extend_from_slice(&iv);
-        msg.extend_from_slice(&salt);
-        writer.write_all(msg.as_slice())?;
+        // TODO: threading
+        for file in file_list.into_iter() {
+            let input_file_name = format!("{}/{}", self.opt.input.display(), file);
+            let output_file_name = format!("{}/{}.sfcrypted", self.opt.output.display(), file);
 
-        // let mut first_block = BufWriter::new(File::create("first_when_encrypt.bin")?);
-        // let mut count = 0;
+            let mut reader = BufReader::new(File::open(input_file_name)?);
+            let mut writer = BufWriter::new(File::create(output_file_name)?);
 
-        let mut buf = [0; 4096];
-        loop {
-            if let Ok(()) = reader.read_exact(&mut buf) {
-                let plaintext = &buf[..];
-                let ciphertext = cipher.clone().encrypt_vec(&plaintext);
-                writer.write_all(ciphertext.as_slice())?;
-                writer.flush()?;
-            } else {
-                break;
+            let mut msg = Vec::with_capacity(iv.len() + salt.len());
+            msg.extend_from_slice(&iv);
+            msg.extend_from_slice(&salt);
+            writer.write_all(msg.as_slice())?;
+            writer.flush()?;
+
+            let mut plaintext = [0; 4096];
+            loop { 
+                match reader.read_exact(&mut plaintext) {
+                    Ok(()) => {
+                        let ciphertext = cipher.clone().encrypt_vec(&plaintext);
+
+                        writer.write_all(ciphertext.as_slice())?;
+                        writer.flush()?;
+                    },
+                    Err(_) => break,
+                }
             }
-
-            // match reader.read(&mut buf)? {
-            //     0 => break,
-            //     n => {
-            //         let plaintext = &buf[..];
-            //         let ciphertext = cipher.clone().encrypt_vec(&plaintext);
-            //         // count += 1;
-
-            //         // // TODO: ここで出てきた暗号文と、復号時で出た平文との比較を行う
-            //         // if count == 2 {
-            //         //     first_block.write_all(ciphertext.as_slice())?;
-            //         //     println!("len: {:?}", ciphertext.len());
-            //         // }
-
-            //         writer.write_all(ciphertext.as_slice())?;
-            //         writer.flush()?;
-            //     }
-            // }
+            pb.inc(1);
         }
+        pb.finish_with_message("done");
 
         Ok(())
     }
 
     fn decrypt(&self) -> SfResult {
-        let mut reader = BufReader::new(File::open(TMP_OUTPUT_FILE)?);
-        let mut writer = BufWriter::new(File::create(TMP_FILE)?);
+        let file_list = get_file_list_with_type(&self.opt.input, "sfcrypted")?;
 
-        let mut iv = [0; IV_LENGTH];
-        reader.read_exact(&mut iv)?;
+        let pb = ProgressBar::new(file_list.len() as u64);
 
-        let mut salt = [0; SALT_SIZE];
-        reader.read_exact(&mut salt)?;
+        for file in file_list.into_iter() {
+            let input_file_name = format!("{}/{}", self.opt.input.display(), file);
+            let output_file_name = format!("{}/{}", self.opt.output.display(), file.trim_end_matches(".sfcrypted"));
 
-        let params = ScryptParams::new(SCRYPT_LOGN, SCRYPT_R, SCRYPT_P);
-        let mut key = [0u8; KEY_LENGTH];
-        scrypt(self.opt.pass.as_bytes(), &salt, &params, &mut key);
-        let key_array: &GenericArray<u8, U32> = GenericArray::from_slice(&key);
+            let mut reader = BufReader::new(File::open(input_file_name)?);
+            let mut writer = BufWriter::new(File::create(output_file_name)?);
 
-        let cipher = Cbc::<Aes256, Pkcs7>::new_from_slices(key_array, &iv).unwrap();
+            let mut iv = [0; IV_LENGTH];
+            reader.read_exact(&mut iv)?;
 
-        // ciphertext.length = (n / blocksize + 1) * blocksize
-        // = (4096 / 16 + 1) * 16
-        // = 4112
-        let mut buf = [0; 4112];
-        loop {
-            if let Ok(()) = reader.read_exact(&mut buf) {
-                // println!("round {:?}", count);
-                let ciphertext = &buf[..];
+            let mut salt = [0; SALT_SIZE];
+            reader.read_exact(&mut salt)?;
 
-                // if count == 2 {
-                //     first_block.write_all(ciphertext)?;
-                //     println!("len: {:?}", ciphertext.len());
-                // }
+            let params = ScryptParams::new(SCRYPT_LOGN, SCRYPT_R, SCRYPT_P);
+            let mut key = [0u8; KEY_LENGTH];
+            scrypt(self.opt.pass.as_bytes(), &salt, &params, &mut key);
+            let key_array: &GenericArray<u8, U32> = GenericArray::from_slice(&key);
 
-                let plaintext = cipher.clone().decrypt_vec(&ciphertext).expect("failed to decrypt error");
+            let cipher = Cbc::<Aes256, Pkcs7>::new_from_slices(key_array, &iv).unwrap();
 
-                writer.write_all(plaintext.as_slice())?;
-                writer.flush()?;
-            } else {
-                break;
+            /* ciphertext.length = (n / blocksize + 1) * blocksize
+             * = (4096 / 16 + 1) * 16
+             * = 4112
+             */
+            let mut ciphertext = [0; 4112];
+            loop {
+                match reader.read_exact(&mut ciphertext) {
+                    Ok(()) => {
+                        let plaintext = cipher.clone().decrypt_vec(&ciphertext).expect("failed to decrypt error");
+
+                        writer.write_all(plaintext.as_slice())?;
+                        writer.flush()?;
+                    },
+                    Err(_) => break,
+                }
             }
-
-            // match reader.read(&mut buf)? {
-            //     0 => break,
-            //     n => {
-            //         // ２回めが短い？
-            //         println!("round {:?}; loaded : {:?}", count, n);
-            //         let ciphertext = &buf[..];
-            //         count += 1;
-
-            //         if count == 2 {
-            //             first_block.write_all(ciphertext)?;
-            //             println!("len: {:?}", ciphertext.len());
-            //         }
-
-            //         let plaintext = cipher.clone().decrypt_vec(&ciphertext).expect("failed to decrypt error");
-
-            //         writer.write_all(plaintext.as_slice())?;
-            //         writer.flush()?;
-            //     }
-            // }
+            pb.inc(1);
         }
+        pb.finish_with_message("done");
 
         Ok(())
     }

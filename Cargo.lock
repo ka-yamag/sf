@@ -107,7 +107,9 @@ dependencies = [
  "encode_unicode",
  "libc",
  "once_cell",
+ "regex",
  "terminal_size",
+ "unicode-width",
  "winapi",
 ]
 
@@ -445,6 +447,7 @@ version = "0.0.1"
 dependencies = [
  "aes",
  "block-modes",
+ "console",
  "indicatif",
  "ring",
  "rust-crypto",

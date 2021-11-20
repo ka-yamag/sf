@@ -3,6 +3,7 @@ mod error;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
+use console::style;
 
 use cryptography::cryptography::Cryptgraphy;
 use cryptography::aes128cbc::AESCBC;
@@ -54,8 +55,22 @@ fn main() -> SfResult {
     let cipher: AESCBC = Cryptgraphy::new(&opt);
 
     match opt.action.as_str() {
-        "encrypt" => cipher.encrypt()?,
-        "decrypt" => cipher.decrypt()?,
+        "encrypt" => {
+            println!(
+                "{} {}",
+                style("[+]").bold().cyan(),
+                style("Encrypt mode").bold().green(),
+                );
+            cipher.encrypt()?
+        },
+        "decrypt" => {
+            println!(
+                "{} {}",
+                style("[+]").bold().cyan(),
+                style("Decrypt mode").bold().green(),
+                );
+            cipher.decrypt()?
+        },
         _ => return Err(SfError::new(format!("Not defined action: {}", opt.action)))
     }
 

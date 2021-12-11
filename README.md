@@ -1,4 +1,5 @@
 # sf
+[![Rust](https://github.com/katyamag/sf/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/katyamag/sf/actions/workflows/rust.yml)
 
 ```bash
 sf 0.0.1

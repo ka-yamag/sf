@@ -1,26 +1,49 @@
-use std::path::PathBuf;
-use std::fs;
 use crate::error::SfError;
+use std::path::PathBuf;
 
-pub fn get_file_list_with_type(input_dir: &PathBuf, file_type: &str) -> Result<Vec<std::string::String>, SfError> {
-    let list = fs::read_dir(input_dir)?
-        .filter_map(Result::ok)
-        .filter(|f| f.path().is_file())
-        .filter(|f| f.path().extension().expect("failed to get file type")
-                .to_str().expect("failed to convert to str").contains(file_type))
-        .map(|f| f.file_name()
-             .to_str().expect("failed to convert to str").to_string())
-        .collect::<Vec<_>>();
+pub struct Files {
+    target_file_format: String,
+    input_dir: PathBuf,
+}
 
-    Ok(list)
+impl Files {
+    fn new(file_format: &str, input_dir: PathBuf) -> Self {
+        Files {
+            target_file_format: file_format.to_string(),
+            input_dir: input_dir,
+        }
+    }
+
+    fn get_file_list(&self) -> Result<Vec<std::string::String>, SfError> {
+        let list = std::fs::read_dir(&self.input_dir)?
+            .filter_map(Result::ok)
+            .filter(|f| f.path().is_file())
+            .filter(|f| {
+                f.path()
+                    .extension()
+                    .expect("failed to get file type")
+                    .to_str()
+                    .expect("failed to convert to str")
+                    .contains(&self.target_file_format)
+            })
+            .map(|f| {
+                f.file_name()
+                    .to_str()
+                    .expect("failed to convert to str")
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+        Ok(list)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
+    use std::fs;
     use tempfile::tempdir;
 
+    // TODO: test name
     #[test]
     fn test_get_file_list_with_type_for_mp4_files() -> Result<(), SfError> {
         let dir = tempdir()?;
@@ -34,19 +57,20 @@ mod tests {
             "recording.mp4",
             "test.mp4.sfcrypted",
         ];
-        
+
         for f in &tmp_file_list {
-            File::create(dir.path().join(f))?;
+            fs::File::create(dir.path().join(f))?;
         }
         let tmp_dir_path = &dir.into_path();
+
+        let f = Files::new("mp4", tmp_dir_path.to_path_buf());
+        let mut actual = f.get_file_list()?;
 
         let mut expect = vec![
             "0057a2b4-fb8c-46bb-8133-ef9920b7bced.mp4",
             "c7dc8644-8559-44f5-96e8-ecc035067856.mp4",
             "recording.mp4",
         ];
-        
-        let mut actual = get_file_list_with_type(&tmp_dir_path, "mp4")?;
 
         assert_eq!(actual.len(), expect.len());
 
@@ -72,9 +96,9 @@ mod tests {
             "recording.mp4",
             "test.mp4.sfcrypted",
         ];
-        
+
         for f in &tmp_file_list {
-            File::create(dir.path().join(f))?;
+            fs::File::create(dir.path().join(f))?;
         }
         let tmp_dir_path = &dir.into_path();
 
@@ -84,8 +108,9 @@ mod tests {
             "test.txt.sfcrypted",
             "test.mp4.sfcrypted",
         ];
-        
-        let mut actual = get_file_list_with_type(&tmp_dir_path, "sfcrypted")?;
+
+        let f = Files::new("sfcrypted", tmp_dir_path.to_path_buf());
+        let mut actual = f.get_file_list()?;
 
         assert_eq!(actual.len(), expect.len());
 
